@@ -18,7 +18,23 @@
         "commands": [
             {
                 "command": "spatial.clean",
-                "title": "Clean Project Workspace"
+                "title": "SpatialOS: Clean Project Workspace"
+            },
+            {
+                "command": "spatial.buildall",
+                "title": "SpatialOS: Build All Workers"
+            },
+            {
+                "command": "spatial.launchlocal",
+                "title": "SpatialOS: Launch SpatialOS (Local)"
+            },
+            {
+                "command": "spatial.stopspatial",
+                "title": "SpatialOS: Stop SpatialOS"
+            },
+            {
+                "command": "spatial.buildworker",
+                "title": "SpatialOS: Build Worker (Select)"
             }
         ]
     },
