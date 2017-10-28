@@ -5,6 +5,8 @@ import * as Worker from './SpatialWorkerDef';
 import path = require('path');
 
 export class SpatialProject extends vscode.Disposable {
+    public UnityProjectPath: String;
+
     private projectConfig;
     private launchConfig;
 
@@ -55,6 +57,12 @@ export class SpatialProject extends vscode.Disposable {
                     def.name = w["worker_type"];
                     def.config = workerConfig;
                     def.directory = path.dirname(workerConfigFile)
+
+                    def.unity = (def.name == 'UnityClient' || def.name == 'UnityWorker');
+                    if (this.UnityProjectPath == null && def.unity) {
+                        this.UnityProjectPath = def.directory;
+                    }
+
                     this.workers.push(def);
 
                     this.outputChannel.appendLine("Added Worker " + def.name + " at " + def.directory);
@@ -75,11 +83,13 @@ export class SpatialProject extends vscode.Disposable {
         return workerNames;
     }
 
-    public GetWorkerDef(name: String) {
+    public GetWorkerDef(name: String): Worker.WorkerDef {
+        let def : Worker.WorkerDef = null;
         this.workers.forEach(worker => {
             if (name == worker.name) {
-                return worker;
+                def = worker;
             }
         });
+        return def;
     }
 }

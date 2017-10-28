@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as proc from 'child_process';
 
 import { SpatialProject } from './SpatialProject';
+import { WorkerDef } from './SpatialWorkerDef';
 
 const SPATIAL_COMMAND: String = "spatial";
 const SPATIAL_CLEAN: String = "clean";
@@ -12,36 +13,84 @@ export class SpatialCommandWrapper {
 
     private running_process: proc.ChildProcess;
 
+    private cmd_clean: vscode.Disposable;
+    private cmd_buildall: vscode.Disposable;
+    private cmd_launchlocal: vscode.Disposable;
+    private cmd_stopspatial: vscode.Disposable;
+    private cmd_buildworker: vscode.Disposable;
+
+    private cmd_unity_buildall: vscode.Disposable;
+    private cmd_unity_buildworker: vscode.Disposable;
+    private cmd_unity_clean: vscode.Disposable;
+
     public constructor(project: SpatialProject, outputChannel: vscode.OutputChannel, context: vscode.ExtensionContext) {
         this.project = project;
         this.outputChannel = outputChannel;
 
-        context.subscriptions.push(vscode.commands.registerCommand("spatial.clean", (_) => { this.clean() }));
-        context.subscriptions.push(vscode.commands.registerCommand("spatial.buildall", (_) => { this.buildAll(); }));
-        context.subscriptions.push(vscode.commands.registerCommand("spatial.launchlocal", (_) => { this.launchLocal(); }));
-        context.subscriptions.push(vscode.commands.registerCommand("spatial.stopspatial", (_) => { this.stopSpatial(); }));
-        context.subscriptions.push(vscode.commands.registerCommand("spatial.buildworker", (_) => { this.buildWorker(); }));
+        // Create standard commands
+        this.cmd_clean          = vscode.commands.registerCommand("spatial.clean", (_) => { this.clean() });
+        this.cmd_buildall       = (vscode.commands.registerCommand("spatial.buildall", (_) => { this.buildAll(); }));
+        this.cmd_launchlocal    = (vscode.commands.registerCommand("spatial.launchlocal", (_) => { this.launchLocal(); }));
+        this.cmd_stopspatial    = (vscode.commands.registerCommand("spatial.stopspatial", (_) => { this.stopSpatial(); }));
+        this.cmd_buildworker    = (vscode.commands.registerCommand("spatial.buildworker", (_) => { this.buildWorker(); }));
+
+        context.subscriptions.push(this.cmd_buildall);
+        context.subscriptions.push(this.cmd_buildworker);
+        context.subscriptions.push(this.cmd_clean);
+        context.subscriptions.push(this.cmd_launchlocal);
+        context.subscriptions.push(this.cmd_stopspatial);
+        
+        // Create UnityMode Commands
+        this.cmd_unity_buildall = (vscode.commands.registerCommand("spatial.unity.buildworkers", (_) => { this.unityBuildAll(); }));
+        this.cmd_unity_buildworker = (vscode.commands.registerCommand("spatial.unity.buildworker", (_) => { this.unityBuildWorker(); }));
+        this.cmd_unity_clean = (vscode.commands.registerCommand("spatial.unity.clean", (_) => { this.unityClean(); }));
+
+        context.subscriptions.push(this.cmd_unity_buildall);
+        context.subscriptions.push(this.cmd_unity_buildworker);
+        context.subscriptions.push(this.cmd_unity_clean);
+    }
+
+    private unityRunning(): boolean {
+        let isRunning = false;
+        vscode.workspace.findFiles("**/Temp/UnityLockfile").then((_) => {
+            isRunning = true;
+        });
+        return isRunning;
     }
 
     public clean(): void {
         this.runSpatial([SPATIAL_CLEAN], "Cleaning Project Workspace");
     }
 
+    public unityClean(): void {
+        this.runSpatial(["invoke", "unity", "Improbable.Unity.EditorTools.Build.SimpleBuildSystem.Clean", "--allow_fail"], "Cleaning Unity Workers", this.project.UnityProjectPath);
+    }
+
     public buildAll(): void {
         this.runSpatial([ "worker", "build"], "Building All Workers");
     }
 
+    public unityBuildAll(): void {
+        this.runSpatial(["invoke", "unity", "Improbable.Unity.EditorTools.Build.SimpleBuildSystem.Build"], "Building Unity Workers", this.project.UnityProjectPath);
+    }
+
     public buildWorker(): void {
-        vscode.window.showQuickPick(this.listWorkers()).then((worker: vscode.QuickPickItem) => {
+        vscode.window.showQuickPick(this.listWorkers(false)).then((worker: vscode.QuickPickItem) => {
             this.runSpatial(["worker", "build", worker.label], "Building " + worker.label);
         });
+    }
+
+    public unityBuildWorker(): void {
+        vscode.window.showQuickPick(this.listWorkers(true)).then((worker: vscode.QuickPickItem) => {
+            this.runSpatial(["invoke", "unity", "Improbable.Unity.EditorTools.Build.SimpleBuildSystem.Build", "+buildWorkerTypes", worker.label], "Building " + worker.label, this.project.UnityProjectPath);
+        })
     }
 
     public launchLocal(): void {
         this.runSpatial([ "local", "launch"], "Launching SpatialOS (Local)");
     }
 
-    private runSpatial(command: String[], taskDescription: string): void {
+    private runSpatial(command: String[], taskDescription: string, root: String = vscode.workspace.rootPath): void {
         this.outputChannel.clear();
         this.outputChannel.appendLine(taskDescription);
 
@@ -73,36 +122,16 @@ export class SpatialCommandWrapper {
         this.running_process.kill();
     }
 
-    private listWorkers(): Thenable<vscode.QuickPickItem[]> {
+    private listWorkers(onlyUnity: boolean): Thenable<vscode.QuickPickItem[]> {
         var items: vscode.QuickPickItem[] = [];
 
         this.project.GetWorkerNames().forEach(worker => {
-            items.push({ label: worker.toString(), description: "" });
+            let wd: WorkerDef = this.project.GetWorkerDef(worker);
+            if ((!onlyUnity) || (onlyUnity && wd.unity)) {
+                items.push({ label: worker.toString(), description: "" });
+            }
         });
 
         return Promise.resolve(items);
     }
 }
-/*
-function runSpatial() {
-    return window.showQuickPick(listTasks()).then((task: QuickPickItem) => {
-        var statusbar: Disposable = window.setStatusBarMessage("Running " + task.label);
-        var process = proc.exec(
-            cmd() + " " + task.label,
-            { cwd: workspace.rootPath },
-            (err, stdout, stderr) => {
-                if (err) window.showErrorMessage("An Error Occured");
-                else window.showInformationMessage("Success!");
-                outputChannel.append(stdout);
-            }
-        );
-
-        process.stdout.on("data", data => outputChannel.append(data.toString()));
-        process.stderr.on("data", data => outputChannel.append("[ERR] " + data.toString()));
-        statusbar.dispose();
-    });
-}
-
-function cmd(): string { return workspace.getConfiguration().get("spatial.useCommand", "spatial"); }
-
-*/

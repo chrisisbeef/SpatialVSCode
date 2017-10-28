@@ -3,7 +3,7 @@
     "displayName": "Spatial VSCode",
     "description": "Spatial project integration for VSCode",
     "version": "0.0.1",
-    "publisher": "FriendsOfSpatial",
+    "publisher": "chrisisbeef",
     "engines": {
         "vscode": "^1.17.0"
     },
@@ -35,6 +35,18 @@
             {
                 "command": "spatial.buildworker",
                 "title": "SpatialOS: Build Worker (Select)"
+            },
+            {
+                "command": "spatial.unity.buildworkers",
+                "title": "SpatialOS: Build Unity Workers"
+            },
+            {
+                "command": "spatial.unity.buildworker",
+                "title": "SpatialOS: Build Unity Worker (Select)"
+            },
+            {
+                "command": "spatial.unity.clean",
+                "title": "SpatialOS: Clean Unity Project"
             }
         ]
     },
