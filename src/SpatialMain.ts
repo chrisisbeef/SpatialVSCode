@@ -15,7 +15,5 @@ export function activate(context: ExtensionContext) {
     project = new SpatialProject(outputChannel);
     project.initializeProject();
 
-    var spatialCommandWrapper = new SpatialCommandWrapper(project, outputChannel);
-
-    context.subscriptions.push(commands.registerCommand("spatial.clean", (args) => { spatialCommandWrapper.clean() }));
+    var spatialCommandWrapper = new SpatialCommandWrapper(project, outputChannel, context);
 }

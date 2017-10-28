@@ -3,21 +3,30 @@ import * as proc from 'child_process';
 
 import { SpatialProject } from './SpatialProject';
 
+const SPATIAL_COMMAND: String = "spatial";
+const SPATIAL_CLEAN: String = "clean";
+
 export class SpatialCommandWrapper {
     private project: SpatialProject;
     private outputChannel: vscode.OutputChannel;
 
-    public constructor(project: SpatialProject, outputChannel: vscode.OutputChannel) {
+    public constructor(project: SpatialProject, outputChannel: vscode.OutputChannel, context: vscode.ExtensionContext) {
         this.project = project;
         this.outputChannel = outputChannel;
+
+        context.subscriptions.push(vscode.commands.registerCommand("spatial.clean", (args) => { this.clean() }));
     }
 
     public clean(): void {
+        this.runSpatial([SPATIAL_CLEAN], "Cleaning Project Workspace");
+    }
+
+    private runSpatial(command: String[], taskDescription: string): void {
         this.outputChannel.clear();
-        this.outputChannel.appendLine("Cleaning Project");
+        this.outputChannel.appendLine(taskDescription);
 
         var process = proc.exec(
-            "spatial clean",
+            SPATIAL_COMMAND + " " + command.join(" "),
             { cwd: vscode.workspace.rootPath }, 
             (err, stdout, stderr) => {
                 if (err) {

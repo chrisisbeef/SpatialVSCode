@@ -13,7 +13,7 @@
     "activationEvents": [
         "workspaceContains:/spatialos.json"
     ],
-    "main": "./out/extension",
+    "main": "./out/SpatialMain",
     "contributes": {
         "commands": [
             {
