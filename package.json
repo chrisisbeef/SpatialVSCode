@@ -2,7 +2,7 @@
     "name": "spatialvscode",
     "displayName": "Spatial VSCode",
     "description": "Spatial project integration for VSCode",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "publisher": "chrisisbeef",
     "engines": {
         "vscode": "^1.17.0"
