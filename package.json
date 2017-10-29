@@ -47,8 +47,44 @@
             {
                 "command": "spatial.unity.clean",
                 "title": "SpatialOS: Clean Unity Project"
+            },
+            {
+                "command": "spatial.unity.openScene",
+                "title": "SpatialOS: Open Unity Project"
             }
-        ]
+        ],
+        "contributes": {
+            "menus": {
+                "editor/title": [{
+                    "command": "spatial.unity.openScene",
+                    "group": "navigation"
+                }]
+            }
+        },
+        "configuration": {
+            "type": "object",
+            "title": "SpatialOS Configuration",
+            "properties": {
+                "spatial.home": {
+                    "type": "string",
+                    "default": "none",
+                    "description": "The path to where the spatial binary is located on disk or \"none\" to use spatial on the PATH",
+                    "scope": "resource"
+                },
+                "spatial.debug": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether to pass the flag --log_level=debug to all spatial process invocations",
+                    "scope": "resource"
+                },
+                "spatial.schema.generateOnSave": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether to generate code on schema file save",
+                    "scope": "resource"
+                }
+            }
+        }
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",

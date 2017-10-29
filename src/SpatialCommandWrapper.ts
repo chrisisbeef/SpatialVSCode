@@ -4,8 +4,7 @@ import * as proc from 'child_process';
 import { SpatialProject } from './SpatialProject';
 import { WorkerDef } from './SpatialWorkerDef';
 
-const SPATIAL_COMMAND: String = "spatial";
-const SPATIAL_CLEAN: String = "clean";
+const SPATIAL_SIMPLE_BUILD: string = "Improbable.Unity.EditorTools.Build.SimpleBuildSystem.Build";
 
 export class SpatialCommandWrapper {
     private project: SpatialProject;
@@ -59,47 +58,106 @@ export class SpatialCommandWrapper {
     }
 
     public clean(): void {
-        this.runSpatial([SPATIAL_CLEAN], "Cleaning Project Workspace");
+        this.runSpatialCommand(
+            SpatialCommandSpec.Create()
+                .withCommand("clean")
+        );
     }
 
     public unityClean(): void {
-        this.runSpatial(["invoke", "unity", "Improbable.Unity.EditorTools.Build.SimpleBuildSystem.Clean", "--allow_fail"], "Cleaning Unity Workers", this.project.UnityProjectPath);
+        this.runSpatialCommand(
+            SpatialCommandSpec.Create()
+                .withCommand("invoke unity")
+                .withCommand(SPATIAL_SIMPLE_BUILD)
+                .withFlag("--allow-fail")
+        )
     }
 
     public buildAll(): void {
-        this.runSpatial([ "worker", "build"], "Building All Workers");
+        this.runSpatialCommand(SpatialCommandSpec.Create().withCommand("unity build"));
     }
 
     public unityBuildAll(): void {
-        this.runSpatial(["invoke", "unity", "Improbable.Unity.EditorTools.Build.SimpleBuildSystem.Build"], "Building Unity Workers", this.project.UnityProjectPath);
+        this.runSpatialCommand(
+            SpatialCommandSpec.Create()
+                .withCommand("invoke unity")
+                .withCommand(SPATIAL_SIMPLE_BUILD)
+                .withWorkingDirectory(this.project.UnityProjectPath)
+        );
     }
 
     public buildWorker(): void {
         vscode.window.showQuickPick(this.listWorkers(false)).then((worker: vscode.QuickPickItem) => {
-            this.runSpatial(["worker", "build", worker.label], "Building " + worker.label);
+            this.runSpatialCommand(SpatialCommandSpec.Create().withCommand("worker build").withCommand(worker.label));
         });
     }
 
     public unityBuildWorker(): void {
         vscode.window.showQuickPick(this.listWorkers(true)).then((worker: vscode.QuickPickItem) => {
-            this.runSpatial(["invoke", "unity", "Improbable.Unity.EditorTools.Build.SimpleBuildSystem.Build", "+buildWorkerTypes", worker.label], "Building " + worker.label, this.project.UnityProjectPath);
+            this.runSpatialCommand(
+                SpatialCommandSpec.Create()
+                    .withCommand("invoke unity")
+                    .withCommand(SPATIAL_SIMPLE_BUILD)
+                    .withFlag("+buildWorkerTypes", worker.label)
+                    .withWorkingDirectory(this.project.UnityProjectPath)
+            );
         })
     }
 
     public launchLocal(): void {
-        this.runSpatial([ "local", "launch"], "Launching SpatialOS (Local)");
+        this.runSpatialCommand(
+            SpatialCommandSpec.Create()
+                .withCommand("local launch")
+        );
     }
 
-    private runSpatial(command: String[], taskDescription: string, root: String = vscode.workspace.rootPath): void {
+    public runSpatialCommands(specs: SpatialCommandSpec[]) {
+        this.outputChannel.clear();
+        this.recurseAndRunSpatialCommand(specs, 0);
+    }
+
+    private recurseAndRunSpatialCommand(specs: SpatialCommandSpec[], current_idx: number) {
+        this.running_process = proc.exec(
+            specs[current_idx].toString(),
+            { cwd: specs[current_idx].workingDir },
+            (err, stdout, stderr) => {
+                if (err) {
+                    this.outputChannel.appendLine("[ERR] Build Error on Step #${current_idx}: " + err);
+                    this.outputChannel.append(stderr);
+                    return;
+                } else {
+                    this.outputChannel.append(stdout);
+                    if (current_idx >= specs.length) {
+                        this.running_process = null;
+                    } else {
+                        this.running_process = null;
+                        this.recurseAndRunSpatialCommand(specs, current_idx++);
+                    }
+                }
+            }
+        );
+
+        this.running_process.stdout.on("data", data => this.outputChannel.append(data.toString()));
+        this.running_process.stderr.on("data", data => this.outputChannel.append("[ERR]: " + data.toString()));
+    }
+
+    public runSpatialCommand(spec: SpatialCommandSpec, taskDescription: string = "Running " + spec.toString() + " from " + spec.workingDir) {
+        if (this.running_process != null) {
+            // TODO: This may cause problems for starting up additional workers (external)
+            vscode.window.showErrorMessage("Please stop running SpatialOS Process before starting another one");
+        }
+
         this.outputChannel.clear();
         this.outputChannel.appendLine(taskDescription);
 
         this.running_process = proc.exec(
-            SPATIAL_COMMAND + " " + command.join(" "),
-            { cwd: vscode.workspace.rootPath }, 
+            spec.toString(),
+            { cwd: spec.workingDir },
             (err, stdout, stderr) => {
                 if (err) {
                     this.outputChannel.appendLine("[ERR]: " + err);
+                    vscode.window.showErrorMessage("An error occured while running spatial; check the Spatial output panel");
+                    this.running_process = null;
                 } else {
                     this.outputChannel.append(stdout);
                     this.running_process = null;
@@ -109,8 +167,8 @@ export class SpatialCommandWrapper {
             }
         );
 
-        process.stdout.on("data", data => this.outputChannel.append(data.toString()));
-        process.stderr.on("data", data => this.outputChannel.append("[ERR]: " + data.toString()));
+        this.running_process.stdout.on("data", data => this.outputChannel.append(data.toString()));
+        this.running_process.stderr.on("data", data => this.outputChannel.append("[ERR]: " + data.toString()));
     }
 
     public stopSpatial(): void {
@@ -122,7 +180,7 @@ export class SpatialCommandWrapper {
         this.running_process.kill();
     }
 
-    private listWorkers(onlyUnity: boolean): Thenable<vscode.QuickPickItem[]> {
+    public listWorkers(onlyUnity: boolean): Thenable<vscode.QuickPickItem[]> {
         var items: vscode.QuickPickItem[] = [];
 
         this.project.GetWorkerNames().forEach(worker => {
@@ -133,5 +191,70 @@ export class SpatialCommandWrapper {
         });
 
         return Promise.resolve(items);
+    }
+}
+
+export class SpatialCommandSpec {
+    public workingDir: string;
+    public command: String[] = [];
+    public commandFlags: SpatialOS.Internal._CommandFlag[] = [];
+
+    private spatialBinary: string = "spatial";
+
+    private constructor() {
+        this.setSpatialBinary();
+        this.addGlobalCommandFlags();
+        this.workingDir = vscode.workspace.rootPath;
+    }
+
+    public static Create(): SpatialCommandSpec {
+        return new SpatialCommandSpec();
+    }
+
+    private setSpatialBinary(): void {
+        // TODO: Read from config
+    }
+
+    private addGlobalCommandFlags(): void {
+        if (vscode.workspace.getConfiguration("spatial").get<boolean>("debug")) {
+            this.commandFlags.push(new SpatialOS.Internal._CommandFlag("--log_level", "debug"));
+        }
+    }
+
+    public withCommand(cmd: string): SpatialCommandSpec {
+        this.command.push(cmd);
+        return this;
+    }
+
+    public withFlag(flag: string, value?: string): SpatialCommandSpec {
+        this.commandFlags.push(new SpatialOS.Internal._CommandFlag(flag, value));
+        return this;
+    }
+
+    public withWorkingDirectory(cwd: String): SpatialCommandSpec {
+        this.workingDir = cwd.toString();
+        return this;
+    }
+
+    public toString(): string {
+        return this.spatialBinary + " " + this.command.join(" ") + this.commandFlags.join(" ");
+    }
+}
+
+namespace SpatialOS.Internal {
+    export class _CommandFlag {
+        public flag: string;
+        public value: string;
+
+        public constructor(flag: string, value?: string) {
+            this.flag = flag;
+            if (this.value) {
+                this.value = value;
+            }
+        }
+
+        public toString(): string {
+            return this.flag + (this.value != null ? "=" + this.value : "");
+        }
     }
 }

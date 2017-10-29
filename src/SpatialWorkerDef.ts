@@ -3,4 +3,5 @@ export class WorkerDef {
     public directory: String;
     public config: JSON;
     public unity: boolean;
+    public unityScene: string;
 }

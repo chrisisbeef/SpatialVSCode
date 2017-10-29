@@ -59,8 +59,16 @@ export class SpatialProject extends vscode.Disposable {
                     def.directory = path.dirname(workerConfigFile)
 
                     def.unity = (def.name == 'UnityClient' || def.name == 'UnityWorker');
+                    
                     if (this.UnityProjectPath == null && def.unity) {
                         this.UnityProjectPath = def.directory;
+                    }
+
+                    if (def.unity) {
+                        vscode.workspace.findFiles("**/Assets/" + def.name + ".unity").then((f) => {
+                            this.outputChannel.appendLine("Found Unity Scene at " + f[0].fsPath);
+                            def.unityScene = f[0].toString();
+                        });
                     }
 
                     this.workers.push(def);
@@ -81,6 +89,10 @@ export class SpatialProject extends vscode.Disposable {
         });
 
         return workerNames;
+    }
+
+    public GetWorkerDefs(): Worker.WorkerDef[] {
+        return this.workers;
     }
 
     public GetWorkerDef(name: String): Worker.WorkerDef {
